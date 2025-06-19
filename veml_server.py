@@ -7,20 +7,25 @@ import time
 import threading
 from collections import deque
 
-# === CONFIGURATION DU LOGGING DYNAMIQUE ===
+# === CONFIGURATION DU LOGGING: fichier + terminal ===
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
 
 log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
 log_path = os.path.join(log_dir, log_filename)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    filename=log_path,
-    filemode='w'
-)
+log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+file_handler = logging.FileHandler(log_path, mode='w')
+file_handler.setFormatter(log_format)
+logger.addHandler(file_handler)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_format)
+logger.addHandler(console_handler)
 
 # === FLASK & CAPTEUR SETUP ===
 app = Flask(__name__)
@@ -29,8 +34,14 @@ bus = smbus.SMBus(1)
 
 data_lock = threading.Lock()
 sensor_data = {
-    "red": 0, "green": 0, "blue": 0, "total_light": 0, "ir": 0,
-    "corrected_red": 0, "corrected_green": 0, "corrected_blue": 0,
+    "red": 0,
+    "green": 0,
+    "blue": 0,
+    "total_light": 0,
+    "ir": 0,
+    "corrected_red": 0,
+    "corrected_green": 0,
+    "corrected_blue": 0,
     "lux_estimate": 0
 }
 
@@ -42,13 +53,13 @@ def average(buffer):
 
 def init_veml3328():
     try:
-        CONFIG = 0x0003
+        CONFIG = 0x0003  # IT = 100 ms, gain normal, active, mode auto
         config_swapped = ((CONFIG & 0xFF) << 8) | (CONFIG >> 8)
         bus.write_word_data(I2C_ADDR, 0x00, config_swapped)
         time.sleep(0.2)
-        logger.info("Capteur VEML3328 initialisé.")
+        logger.info("Capteur VEML3328 initialisé avec succès.")
     except Exception as e:
-        logger.error(f"Erreur d'initialisation capteur : {e}")
+        logger.error(f"Erreur d'initialisation du capteur : {e}")
 
 def read_channel(lsb_reg):
     lsb = bus.read_byte_data(I2C_ADDR, lsb_reg)
@@ -63,7 +74,7 @@ def read_all_channels():
     ir    = read_channel(0x08)
     return red, green, blue, clear, ir
 
-def estimate_lux(green):
+def estimate_lux(green, it_ms=100):
     return round(green * 0.0025) if green else 0
 
 def sensor_loop():
@@ -99,16 +110,14 @@ def sensor_loop():
             logger.info(
                 f"R={avg_red}, G={avg_green}, B={avg_blue}, Light={avg_clear}, IR={avg_ir}, Lux={sensor_data['lux_estimate']}"
             )
-
             time.sleep(0.2)
-
         except Exception as e:
-            logger.error(f"Erreur lecture capteur : {e}")
+            logger.error(f"Erreur de lecture capteur : {e}")
             break
 
 @app.route("/")
 def index():
-    logger.info("Page d'accueil consultée.")
+    logger.info("Accès à la page d'accueil.")
     return render_template("index.html")
 
 @app.route("/api/data")
