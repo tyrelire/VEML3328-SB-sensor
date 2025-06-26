@@ -53,7 +53,7 @@ def average(buffer):
 
 def init_veml3328():
     try:
-        CONFIG = 0x0003  # IT = 100 ms, gain normal, active, mode auto
+        CONFIG = 0x0003
         config_swapped = ((CONFIG & 0xFF) << 8) | (CONFIG >> 8)
         bus.write_word_data(I2C_ADDR, 0x00, config_swapped)
         time.sleep(0.2)
