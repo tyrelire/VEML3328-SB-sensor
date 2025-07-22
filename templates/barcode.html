@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EOL</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/barcode.css') }}"
+    />
+  </head>
+  <body>
+    <a href="/" id="backButton">← Retour</a>
+    <h1>End of line / Led Test</h1>
+    <div class="container">
+      <div class="section">
+        <input
+          id="barcodeInput"
+          type="text"
+          placeholder="Entrer le code-barres et Entrée"
+        />
+        <button id="startTestBtn" style="display: none">Lancer le test</button>
+      </div>
+
+      <div class="product" id="productInfo"></div>
+      <div class="result" id="testResult"></div>
+
+      <div id="chartContainer">
+        <canvas id="chart"></canvas>
+      </div>
+
+      <div class="logpath" id="logPath"></div>
+      <div class="logpath" id="lastTestLog"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/barcode.js') }}"></script>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EOL – Dev</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/dev.css') }}"
+    />
+  </head>
+  <body>
+    <a href="/" id="backButton">← Retour</a>
+    <h1>Mode Développement / Led Test</h1>
+    <div class="container">
+      <div class="section">
+        <button id="startDCBtn">Start DC</button>
+        <button id="startACBtn">Start AC</button>
+      </div>
+
+      <div class="result" id="testResult"></div>
+
+      <div id="chartContainer">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+  </body>
+</html>

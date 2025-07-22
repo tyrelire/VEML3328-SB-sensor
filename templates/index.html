@@ -1,126 +1,23 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <title>VEML3328 Live Viewer</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; }
-    #colorBox {
-      width: 100px;
-      height: 100px;
-      border: 2px solid #000;
-      margin: 20px auto;
-    }
-    .reading { font-size: 18px; margin: 5px; }
-    .analysis { font-weight: bold; font-size: 20px; margin-top: 20px; }
-    .legend {
-      margin-top: 30px;
-      font-size: 14px;
-      text-align: left;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
-      background: #f0f0f0;
-      padding: 15px;
-      border-radius: 8px;
-    }
-  </style>
-</head>
-<body>
-  <h1>VEML3328 • Visualisation en Temps Réel</h1>
-  <div id="colorBox"></div>
-  <div class="reading" id="readings"></div>
-  <div class="analysis" id="analysis"></div>
-  <canvas id="chart" width="600" height="300"></canvas>
-
-  <div class="legend">
-    <h3>Légende des Canaux</h3>
-    <ul>
-      <li><b>Rouge (Red)</b> : intensité lumineuse dans la plage rouge du spectre visible.</li>
-      <li><b>Vert (Green)</b> : intensité lumineuse dans la plage verte du spectre visible.</li>
-      <li><b>Bleu (Blue)</b> : intensité lumineuse dans la plage bleue du spectre visible.</li>
-      <li><b>Lumière Totale (Clear)</b> : somme globale de toute la lumière visible reçue (non filtrée).</li>
-      <li><b>IR (Infrarouge)</b> : intensité de la lumière infrarouge, invisible à l’œil nu.</li>
-    </ul>
-  </div>
-
-  <script>
-    const ctx = document.getElementById('chart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'Red',   data: [], borderColor: 'red' },
-          { label: 'Green', data: [], borderColor: 'green' },
-          { label: 'Blue',  data: [], borderColor: 'blue' },
-          { label: 'Lumière Totale', data: [], borderColor: 'gray' },
-          { label: 'IR',    data: [], borderColor: 'purple' }
-        ]
-      },
-      options: {
-        scales: {
-          x: { display: false },
-          y: { beginAtZero: true }
-        }
-      }
-    });
-
-    function updateChart(data) {
-      if (chart.data.labels.length > 50) {
-        chart.data.labels.shift();
-        chart.data.datasets.forEach(ds => ds.data.shift());
-      }
-
-      chart.data.labels.push('');
-      chart.data.datasets[0].data.push(data.red);
-      chart.data.datasets[1].data.push(data.green);
-      chart.data.datasets[2].data.push(data.blue);
-      chart.data.datasets[3].data.push(data.total_light);
-      chart.data.datasets[4].data.push(data.ir);
-      chart.update();
-    }
-
-    function interpret(data) {
-      let dominant = 'Inconnu';
-      const maxVal = Math.max(data.red, data.green, data.blue);
-      if (maxVal === data.red) dominant = 'Rouge';
-      else if (maxVal === data.green) dominant = 'Vert';
-      else if (maxVal === data.blue) dominant = 'Bleu';
-
-      let irStatus = data.ir > 10000 ? 'Lumière IR très présente' : 'Niveau IR normal';
-      let bright = data.total_light > 5000 ? 'Forte luminosité' : 'Luminosité faible';
-
-      return `Dominante : ${dominant} • ${bright} • ${irStatus}`;
-    }
-
-    function normalize(value) {
-      return Math.round((value / 65535) * 255);
-    }
-
-    async function fetchData() {
-      const res = await fetch('/api/data');
-      const data = await res.json();
-
-      const r255 = normalize(data.red);
-      const g255 = normalize(data.green);
-      const b255 = normalize(data.blue);
-
-      document.getElementById('readings').innerHTML = `
-        <b>Raw:</b> R: ${data.red}, G: ${data.green}, B: ${data.blue}, Lumière Totale: ${data.total_light}, IR: ${data.ir}<br/>
-        <b>RGB (0–255):</b> R: ${r255}, G: ${g255}, B: ${b255}
-      `;
-
-      document.getElementById('analysis').textContent = interpret(data);
-
-      const color = `rgb(${r255}, ${g255}, ${b255})`;
-      document.getElementById('colorBox').style.backgroundColor = color;
-
-      updateChart(data);
-    }
-
-    setInterval(fetchData, 1000);
-  </script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Menu EOL</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/index.css') }}"
+    />
+  </head>
+  <body>
+    <div class="menu-container">
+      <h1>Bienvenue sur le banc EOL</h1>
+      <div class="menu-buttons">
+        <button onclick="location.href='/barcode'">Code-barres</button>
+        <button onclick="location.href='/select-model'">
+          Sélection modèle
+        </button>
+        <button onclick="location.href='/dev'">Développement</button>
+      </div>
+    </div>
+  </body>
 </html>

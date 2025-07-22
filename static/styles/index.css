@@ -1,0 +1,39 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.menu-container {
+  text-align: center;
+}
+
+h1 {
+  color: #333;
+  margin-bottom: 40px;
+}
+
+.menu-buttons {
+  display: flex;
+  gap: 30px;
+  justify-content: center;
+}
+
+.menu-buttons button {
+  padding: 14px 30px;
+  font-size: 18px;
+  background-color: #007bff;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.menu-buttons button:hover {
+  background-color: #0056b3;
+}
