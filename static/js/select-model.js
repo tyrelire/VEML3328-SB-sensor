@@ -1,6 +1,8 @@
 let currentLimits = {};
 let allProducts = [];
 const resultEl = document.getElementById("testResult");
+const startBtn = document.getElementById("startTestBtn");
+const modelInput = document.getElementById("modelSelect");
 
 let chart = new Chart(document.getElementById("chart").getContext("2d"), {
   type: "line",
@@ -43,7 +45,7 @@ async function startMeasurement() {
   chart.update();
   resultEl.className = "result";
   resultEl.textContent = "Test en cours...";
-  document.getElementById("startTestBtn").disabled = true;
+  startBtn.disabled = true;
 
   const evtSource = new EventSource(
     "/api/measure-stream?limits=" +
@@ -67,98 +69,61 @@ async function startMeasurement() {
       resultEl.className =
         parsed.final_result === "NO GO" ? "result nogo" : "result go";
       evtSource.close();
-      document.getElementById("startTestBtn").disabled = false;
+      startBtn.disabled = false;
     }
   };
 
   evtSource.onerror = () => {
     evtSource.close();
-    document.getElementById("startTestBtn").disabled = false;
+    resultEl.textContent = "❌ Erreur de communication.";
+    startBtn.disabled = false;
   };
 }
 
-const modelInput = document.getElementById("modelSelect");
-const barcodeInput = document.getElementById("barcodeInput");
+modelInput.addEventListener("input", async () => {
+  const selectedRef = modelInput.value.trim();
 
-barcodeInput.disabled = true;
+  if (selectedRef === "") {
+    currentLimits = {};
+    resultEl.textContent = "";
+    startBtn.style.display = "none";
+    return;
+  }
 
-modelInput.addEventListener("input", () => {
-  const selectedModel = modelInput.value.trim();
-  const match = allProducts.find((p) => p.reference === selectedModel);
+  const match = allProducts.find((p) => p.reference === selectedRef);
 
-  if (match) {
-    barcodeInput.value = match.reference;
-    barcodeInput.disabled = false;
-    barcodeInput.readOnly = true;
-  } else {
-    barcodeInput.value = "";
-    barcodeInput.disabled = true;
-    barcodeInput.readOnly = false;
+  if (!match) {
+    currentLimits = {};
+    resultEl.textContent = "";
+    startBtn.style.display = "none";
+    return;
+  }
+
+  resultEl.textContent = "⏳ Chargement des limites...";
+
+  try {
+    const confRes = await fetch(
+      `/api/config?code_article=${encodeURIComponent(match.reference)}`
+    );
+    const limits = await confRes.json();
+
+    currentLimits = limits || {};
+    if (!limits || Object.keys(limits).length === 0) {
+      resultEl.textContent =
+        "⚠️ Aucune limite trouvée. Vous pouvez quand même lancer le test.";
+    } else {
+      resultEl.textContent = "✅ Limites chargées. Prêt pour test.";
+    }
+
+    startBtn.style.display = "inline-block";
+  } catch (err) {
+    console.error(err);
+    resultEl.textContent = "❌ Erreur lors du chargement des limites.";
+    startBtn.style.display = "none";
   }
 });
 
-document
-  .getElementById("startTestBtn")
-  .addEventListener("click", startMeasurement);
-
-document
-  .getElementById("barcodeInput")
-  .addEventListener("keypress", async function (e) {
-    if (e.key !== "Enter") return;
-    const barcode = this.value.trim();
-    const selectedModel = document.getElementById("modelSelect").value;
-
-    if (!barcode || !selectedModel) {
-      alert("Veuillez sélectionner un modèle avant de scanner.");
-      return;
-    }
-
-    this.value = "";
-    document.getElementById("productInfo").textContent =
-      "Recherche du produit...";
-    resultEl.textContent = "";
-    document.getElementById("startTestBtn").style.display = "none";
-
-    try {
-      const prodRes = await fetch(
-        `/api/product?barcode=${encodeURIComponent(barcode)}`
-      );
-      const prodData = await prodRes.json();
-      if (!prodData.donnees || !prodData.donnees.length)
-        throw new Error("Produit non trouvé.");
-
-      const produit = prodData.donnees[0];
-      const code_article = produit.code_article.trim();
-
-      let html = `<h3>Détails produit :</h3><ul>`;
-      for (const [k, v] of Object.entries(produit)) {
-        if (v && String(v).trim()) html += `<li><b>${k}:</b> ${v}</li>`;
-      }
-      html += `</ul>`;
-      document.getElementById("productInfo").innerHTML = html;
-
-      resultEl.textContent = "Récupération des limites...";
-      const confRes = await fetch(
-        `/api/config?code_article=${encodeURIComponent(code_article)}`
-      );
-      const limits = await confRes.json();
-
-      currentLimits = limits || {};
-      if (!limits || Object.keys(limits).length === 0) {
-        resultEl.textContent =
-          "⚠️ Aucune limite trouvée. Vous pouvez quand même lancer le test.";
-      } else {
-        resultEl.textContent = "✅ Limites chargées. Prêt pour test.";
-      }
-
-      document.getElementById("startTestBtn").style.display = "inline-block";
-    } catch (err) {
-      console.error(err);
-      document.getElementById("productInfo").textContent =
-        "Erreur : " + err.message;
-      resultEl.textContent = "";
-    }
-  });
+startBtn.addEventListener("click", startMeasurement);
 
 fetch("/api/products")
   .then((res) => res.json())
