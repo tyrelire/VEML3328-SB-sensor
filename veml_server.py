@@ -10,6 +10,7 @@ from flask import send_file, abort
 import tempfile
 import shutil
 
+I2C_ADDR = 0x10
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
 log_file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
@@ -23,6 +24,13 @@ logger = logging.getLogger()
 
 app = Flask(__name__)
 
+def init_veml3328():
+    CONFIG = 0x0000
+    config_swapped = ((CONFIG & 0xFF) << 8) | (CONFIG >> 8)
+    bus.write_word_data(I2C_ADDR, 0x00, config_swapped)
+    time.sleep(0.1)
+    logger.info("VEML3328 initialisé avec succès (registre 0x00 = 0x0000)")
+
 try:
     import smbus
     bus = smbus.SMBus(1)
@@ -31,6 +39,7 @@ try:
 except ImportError:
     IS_SIMULATION = True
     logger.warning("Mode simulation : SMBus non dispo")
+    init_veml3328()
     bus = None
 
 I2C_ADDR = 0x10
@@ -107,103 +116,156 @@ def api_config():
     code_article = request.args.get("code_article")
     if not code_article:
         return jsonify({"error": "No code_article provided"}), 400
+
     config_url = f"http://163.172.70.144/time_tracking/webservices/get_config_by_reference.php?reference={code_article}"
     logger.info(f"Requête limites vers : {config_url}")
+
     try:
         r = requests.get(config_url, timeout=5)
         r.raise_for_status()
         raw_content = r.content.decode("utf-8-sig")
         raw_data = json.loads(raw_content)
+
         if not raw_data or not isinstance(raw_data, list) or len(raw_data) == 0:
             logger.warning(f"Aucune limite définie pour {code_article}")
             return jsonify({})
+
         entry = raw_data[0]
+        logger.info(f"Config brute renvoyée : {entry}")
+        return jsonify(entry)
 
-        limits = {
-            "red": {
-                "min": scale_8bit_to_16bit(entry.get("p1red_min_red", 0)),
-                "max": scale_8bit_to_16bit(entry.get("p1red_max_red", 255))
-            },
-            "green": {
-                "min": scale_8bit_to_16bit(entry.get("p1red_min_green", 0)),
-                "max": scale_8bit_to_16bit(entry.get("p1red_max_green", 255))
-            },
-            "blue": {
-                "min": scale_8bit_to_16bit(entry.get("p1red_min_blue", 0)),
-                "max": scale_8bit_to_16bit(entry.get("p1red_max_blue", 255))
-            }
-        }
-
-        logger.info(f"Limites finales converties en 16 bits : {limits}")
-        return jsonify(limits)
     except Exception as e:
         logger.error(f"Erreur config : {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/api/measure-stream")
 def api_measure_stream():
-    limits_raw = request.args.get("limits")
+    config_raw = request.args.get("limits")
     try:
-        limits = json.loads(limits_raw) if limits_raw else {}
+        config_list = json.loads(config_raw)
+        config = config_list[0] if isinstance(config_list, list) else config_list
     except:
-        limits = {}
+        return jsonify({"error": "Invalid config JSON"}), 400
 
-    logger.info(f"Test stream lancé avec limites : {limits}")
+    phases = []
+    for key in config.keys():
+        if "_start" in key and key.startswith("p"):
+            phase_base = key.replace("_start", "")
+            try:
+                start = int(config[f"{phase_base}_start"])
+                end = int(config[f"{phase_base}_end"])
+
+                limits = {}
+                # On récupère la couleur associée à la phase (ex: p1red → red)
+                phase_color = phase_base[2:]  # retire le 'p1' → donne 'red', 'green', etc.
+                color_key = "total_light" if phase_color == "white" else phase_color
+
+                min_key = f"{phase_base}_min_{phase_color}"
+                max_key = f"{phase_base}_max_{phase_color}"
+                min_val = int(config.get(min_key, 0))
+                max_val = int(config.get(max_key, 0))
+
+                if min_val != 0 or max_val != 0:
+                    limits = {
+                        color_key: {
+                            "min": scale_8bit_to_16bit(min_val),
+                            "max": scale_8bit_to_16bit(max_val)
+                        }
+                    }
+
+                    phases.append({
+                        "name": phase_base,
+                        "start": start,
+                        "end": end,
+                        "limits": limits
+                    })
+
+                    logger.info("Phases extraites (debug):")
+                    for phase in phases:
+                        logger.info(json.dumps(phase, indent=2))
+
+            except Exception as e:
+                logger.warning(f"Erreur parsing phase {phase_base}: {e}")
+                continue
+
+    logger.info(f"Phases extraites : {phases}")
 
     def generate():
         all_values = []
         failed_checks = []
         final_result = "GO"
         start_time = time.time()
-        while time.time() - start_time < 8:
-            values = read_all_channels()
-            logger.info(f"Mesure en cours : {values}")
-            all_values.append(values)
+        active_phase_detected = False  # ✅ Initialisation
 
-            for k, v in limits.items():
-                try:
-                    min_v = int(v["min"])
-                    max_v = int(v["max"])
-                    raw_value = values.get(k, 0)
-                    if raw_value < min_v or raw_value > max_v:
+        for phase in sorted(phases, key=lambda p: p["start"]):
+            now = int((time.time() - start_time) * 1000)
+            wait_time = phase["start"] - now
+            if wait_time > 0:
+                time.sleep(wait_time / 1000)
+
+            logger.info(f"🕒 Phase active : {phase['name']} ({phase['start']}–{phase['end']} ms)")
+
+            while True:
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                if elapsed_ms > phase["end"]:
+                    break
+
+                active_phase_detected = True  # ✅ Phase détectée
+
+                values = read_all_channels()
+                logger.info(f"[{elapsed_ms} ms] Mesure ({phase['name']}) : {values}")
+                all_values.append({"t": elapsed_ms, "values": values})
+
+                for color, lim in phase["limits"].items():
+                    val_raw = values.get(color, 0)
+                    val_8bit = round(val_raw / 257)
+
+                    if val_raw < lim["min"] or val_raw > lim["max"]:
                         final_result = "NO GO"
+                        logger.warning(f"⚠️ {color.upper()} hors limite pendant {phase['name']} : {val_raw} (limite {lim['min']} – {lim['max']})")
 
-                        value_8bit = round(raw_value / 257)
-                        min_8bit = round(min_v / 257)
-                        max_8bit = round(max_v / 257)
+                        already_logged = any(
+                            check["phase"] == phase["name"] and
+                            check["channel"] == color and
+                            check["value_raw"] == val_raw
+                            for check in failed_checks
+                        )
 
-                        failed_checks.append({
-                            "channel": k,
-                            "value_raw": raw_value,
-                            "value_8bit": value_8bit,
-                            "min_raw": min_v,
-                            "max_raw": max_v,
-                            "min_8bit": min_8bit,
-                            "max_8bit": max_8bit
-                        })
-                        break
-                except Exception as e:
-                    logger.error(f"Erreur de validation limite: {e}")
-                    continue
+                        if not already_logged:
+                            failed_checks.append({
+                                "phase": phase["name"],
+                                "channel": color,
+                                "value_raw": val_raw,
+                                "value_8bit": val_8bit,
+                                "min_raw": lim["min"],
+                                "max_raw": lim["max"],
+                                "min_8bit": round(lim["min"] / 257),
+                                "max_8bit": round(lim["max"] / 257),
+                                "time_ms": elapsed_ms
+                            })
 
-            line = json.dumps({"values": values})
-            yield f"data: {line}\n\n"
-            time.sleep(0.5)
 
-        with open(os.path.join(log_dir, f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"), "w") as f:
+                yield f"data: {json.dumps({'time_ms': elapsed_ms, 'values': values})}\n\n"
+                time.sleep(0.05)
+
+        if not active_phase_detected:
+            final_result = "NO GO"
+            logger.warning("Aucune phase active détectée pendant le test. Résultat forcé à NO GO.")
+
+        log_path = os.path.join(log_dir, f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+        with open(log_path, "w") as f:
             for entry in all_values:
-                f.write(f"{entry}\n")
-            f.write(f"Resultat final: {final_result}\n")
+                f.write(json.dumps(entry) + "\n")
+            f.write(f"Résultat final: {final_result}\n")
             if failed_checks:
-                f.write(f"Non conformités: {failed_checks}\n")
+                f.write(f"Non conformités: {json.dumps(failed_checks)}\n")
 
-        result_message = {
-            "final_result": final_result,
-            "failed_checks": failed_checks if failed_checks else None
-        }
-        yield f"data: {json.dumps(result_message)}\n\n"
+        logger.info(f"✅ Résultat final du test : {final_result}")
+        yield f"data: {json.dumps({'final_result': final_result, 'failed_checks': failed_checks})}\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
+
 
 @app.route("/api/last-test-log")
 def api_last_test_log():
