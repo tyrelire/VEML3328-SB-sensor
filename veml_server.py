@@ -225,10 +225,10 @@ def api_measure_stream():
                         final_result = "NO GO"
                         logger.warning(f"⚠️ {color.upper()} hors limite pendant {phase['name']} : {val_raw} (limite {lim['min']} – {lim['max']})")
 
+                        # Évite les doublons exacts
                         already_logged = any(
                             check["phase"] == phase["name"] and
-                            check["channel"] == color and
-                            check["value_raw"] == val_raw
+                            check["channel"] == color
                             for check in failed_checks
                         )
 
@@ -244,6 +244,7 @@ def api_measure_stream():
                                 "max_8bit": round(lim["max"] / 257),
                                 "time_ms": elapsed_ms
                             })
+
 
 
                 yield f"data: {json.dumps({'time_ms': elapsed_ms, 'values': values})}\n\n"
