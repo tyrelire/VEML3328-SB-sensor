@@ -10,6 +10,7 @@ from flask import send_file, abort
 import tempfile
 import shutil
 
+I2C_ADDR = 0x10
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
 log_file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
@@ -23,6 +24,13 @@ logger = logging.getLogger()
 
 app = Flask(__name__)
 
+def init_veml3328():
+    CONFIG = 0x0000
+    config_swapped = ((CONFIG & 0xFF) << 8) | (CONFIG >> 8)
+    bus.write_word_data(I2C_ADDR, 0x00, config_swapped)
+    time.sleep(0.1)
+    logger.info("VEML3328 initialisé avec succès (registre 0x00 = 0x0000)")
+
 try:
     import smbus
     bus = smbus.SMBus(1)
@@ -31,6 +39,7 @@ try:
 except ImportError:
     IS_SIMULATION = True
     logger.warning("Mode simulation : SMBus non dispo")
+    init_veml3328()
     bus = None
 
 I2C_ADDR = 0x10
