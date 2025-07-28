@@ -60,18 +60,24 @@ async function startMeasurement() {
 
   evtSource.onmessage = (event) => {
     const parsed = JSON.parse(event.data);
+    console.log("▶️ parsed", parsed); 
     if (parsed.values) {
       updateChart(parsed.values);
     }
     if (parsed.final_result) {
       let resultText = parsed.final_result;
-      if (parsed.final_result === "NO GO" && parsed.failed_checks) {
-        resultText += "\n\nÉcarts détectés :\n";
-        parsed.failed_checks.forEach((fail) => {
-          resultText += `• ${fail.channel} : ${fail.value_raw} (~${fail.value_8bit}/255)\n`;
-          resultText += `  Limites : ${fail.min_raw}–${fail.max_raw} (≈ ${fail.min_8bit}–${fail.max_8bit})\n\n`;
-        });
-      }
+    if (
+      parsed.final_result === "NO GO" &&
+      Array.isArray(parsed.failed_checks) &&
+      parsed.failed_checks.length > 0
+    ) {
+      resultText += "\n\nÉcarts détectés :\n";
+      parsed.failed_checks.forEach((fail) => {
+        resultText += `• ${fail.channel} : ${fail.value_raw} (~${fail.value_8bit}/255)\n`;
+        resultText += `  Limites : ${fail.min_raw}–${fail.max_raw} (≈ ${fail.min_8bit}–${fail.max_8bit})\n\n`;
+      });
+    }
+
       resultEl.textContent = resultText;
       resultEl.className =
         parsed.final_result === "NO GO" ? "result nogo" : "result go";
@@ -132,6 +138,38 @@ document
           "⚠️ Aucune limite trouvée. Vous pouvez quand même lancer le test.";
       } else {
         resultEl.textContent = "✅ Limites chargées. Prêt pour test.";
+        // Affichage des limites extraites
+        let phasesHTML = "<h3>Limites de test :</h3><ul>";
+        const phaseColorMap = {
+          p1red: "Rouge",
+          p2green: "Vert",
+          p3blue: "Bleu",
+          p4white: "Blanc"
+        };
+
+        for (const key in limits) {
+          if (key.endsWith("_start")) {
+            const phase = key.replace("_start", "");
+            const color = phaseColorMap[phase] || phase;
+            const start = limits[`${phase}_start`];
+            const end = limits[`${phase}_end`];
+
+            const mainColor = phase.includes("red") ? "red" :
+                              phase.includes("green") ? "green" :
+                              phase.includes("blue") ? "blue" :
+                              phase.includes("white") ? "white" : null;
+
+            const min = limits[`${phase}_min_${mainColor}`];
+            const max = limits[`${phase}_max_${mainColor}`];
+
+            if (min !== undefined && max !== undefined && (min != 0 || max != 0)) {
+              phasesHTML += `<li><b>${color}</b> : ${min}–${max} (entre ${start}ms et ${end}ms)</li>`;
+            }
+          }
+        }
+        phasesHTML += "</ul>";
+        document.getElementById("productInfo").innerHTML += phasesHTML;
+
       }
       document.getElementById("startTestBtn").style.display = "inline-block";
     } catch (err) {
