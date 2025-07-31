@@ -179,6 +179,6 @@ fetch("/api/last-test-log")
       ).textContent = `🗂️ Dernier log de test : /logs/${data.test_log_filename}`;
     } else {
       document.getElementById("lastTestLog").textContent =
-        "ℹ️ Aucun log de test encore enregistré.";
+        "Aucun log de test encore enregistre.";
     }
   });
