@@ -132,10 +132,8 @@ def api_config():
         return jsonify(entry)
 
     except Exception as e:
-        logger.error(f"❌ Erreur config : {e}")
+        logger.error(f"Erreur config : {e}")
         return jsonify({})
-
-
 
 @app.route("/api/measure-stream")
 def api_measure_stream():
@@ -161,7 +159,6 @@ def api_measure_stream():
             json_color = "white" if color == "total_light" else color
             min_val = int(config.get(f"{phase_name}_min_{json_color}", 0))
             max_val = int(config.get(f"{phase_name}_max_{json_color}", 0))
-
 
             # if min_val == 0 and max_val == 0:
             #     continue
@@ -192,13 +189,13 @@ def api_measure_stream():
             if wait > 0:
                 time.sleep(wait / 1000)
 
-            logger.info(f"🕒 Phase active : {phase['name']} ({phase['start']}–{phase['end']} ms)")
+            logger.info(f"Phase active : {phase['name']} ({phase['start']}–{phase['end']} ms)")
             elapsed = int((time.time() - start_time) * 1000)
             values = read_all_channels()
             all_values.append({"t": elapsed, "values": values})
             color = phase["color"]
             val_raw = values.get(color, 0)
-            val_8bit = round(val_raw / 257)
+            val_8bit = round((val_raw / 65535) * 255)
             min_ = phase["limits"]["min"]
             max_ = phase["limits"]["max"]
 
@@ -211,8 +208,8 @@ def api_measure_stream():
                     "channel": color,
                     "value_raw": val_raw,
                     "value_8bit": val_8bit,
-                    "min_raw": min_ * 257,
-                    "max_raw": max_ * 257,
+                    "min_raw": round((min_ / 255) * 65535),
+                    "max_raw": round((max_ / 255) * 65535),
                     "min_8bit": min_,
                     "max_8bit": max_,
                     "time_ms": elapsed
@@ -226,11 +223,11 @@ def api_measure_stream():
         with open(log_path, "w") as f:
             for entry in all_values:
                 f.write(json.dumps(entry) + "\n")
-            f.write(f"Résultat final: {final_result}\n")
+            f.write(f"Resultat final: {final_result}\n")
             if failed_checks:
                 f.write(f"Non conformités: {json.dumps(failed_checks)}\n")
 
-        logger.info(f"✅ Résultat final du test : {final_result}")
+        logger.info(f"Resultat final du test : {final_result}")
         yield f"data: {json.dumps({'final_result': final_result, 'failed_checks': failed_checks})}\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
@@ -255,7 +252,6 @@ def download_log(filename):
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             shutil.copy2(path, tmp.name)
             tmp_path = tmp.name
-
         return send_file(tmp_path, as_attachment=True, download_name=filename)
     except Exception as e:
         logger.error(f"Erreur envoi fichier log : {e}")
