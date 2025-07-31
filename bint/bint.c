@@ -159,7 +159,6 @@ char attendreEtVerifierStop(unsigned int secondes) {
     for (unsigned int i = 0; i < secondes * 20; i++) {
         __delay_ms(50);
         envoyerCommandeRS485(0xFFFFFFFF); // Commande de présence
-        // envoyerCommandeRS485(0xAAAAAAAA); // (optionnel)
 
         if (BTN_STOP == 0) { // Si STOP appuyé
             __delay_ms(30);
