@@ -232,15 +232,19 @@ def api_measure_stream():
 
     return Response(generate(), mimetype='text/event-stream')
 
+# === Route API : renvoie le nom du dernier log de test généré ===
 @app.route("/api/last-test-log")
 def api_last_test_log():
+    # Liste les fichiers de log commençant par "test_" et prend le plus récent
     test_logs = sorted([f for f in os.listdir(log_dir) if f.startswith("test_")], reverse=True)
     if test_logs:
         return jsonify({"test_log_filename": test_logs[0]})
     return jsonify({"test_log_filename": None})
 
+# === Route API : téléchargement sécurisé d'un fichier log ===
 @app.route("/download-log/<filename>")
 def download_log(filename):
+    # Vérifie que le nom de fichier est valide et ne contient pas de tentative d'accès interdit
     if not (filename.endswith(".log") and (".." not in filename)):
         return abort(403)
 
@@ -249,14 +253,17 @@ def download_log(filename):
         return abort(404)
 
     try:
+        # Copie le fichier dans un fichier temporaire pour éviter les problèmes de verrouillage
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             shutil.copy2(path, tmp.name)
             tmp_path = tmp.name
+        # Envoie le fichier en pièce jointe au client
         return send_file(tmp_path, as_attachment=True, download_name=filename)
     except Exception as e:
         logger.error(f"Erreur envoi fichier log : {e}")
         return f"Erreur : {e}", 500
 
+# === Point d'entrée principal du serveur Flask ===
 if __name__ == "__main__":
     logger.info(f"Flask en ligne sur 0.0.0.0:5000 • Log : {log_file}")
     app.run(host="0.0.0.0", port=5000, debug=False)
