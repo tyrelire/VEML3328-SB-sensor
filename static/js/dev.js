@@ -1,9 +1,11 @@
+// Élément d'affichage du résultat du test
 const resultEl = document.getElementById("testResult");
 
+// Initialisation du graphique (Chart.js) pour afficher les mesures en temps réel
 let chart = new Chart(document.getElementById("chart").getContext("2d"), {
   type: "line",
   data: {
-    labels: [],
+    labels: [], // Axe X (temps ou points)
     datasets: [
       { label: "Red", data: [], borderColor: "red", fill: false },
       { label: "Green", data: [], borderColor: "green", fill: false },
@@ -25,8 +27,10 @@ let chart = new Chart(document.getElementById("chart").getContext("2d"), {
   },
 });
 
+// Met à jour le graphique avec les nouvelles valeurs reçues
 function updateChart(values) {
   if (!values) return;
+  // Limite à 50 points pour garder le graphique lisible
   if (chart.data.labels.length > 50) {
     chart.data.labels.shift();
     chart.data.datasets.forEach((ds) => ds.data.shift());
@@ -40,15 +44,19 @@ function updateChart(values) {
   chart.update("none");
 }
 
+// Lance un test (DC ou AC) et gère le flux SSE pour afficher les mesures
 function launchTest(mode) {
+  // Réinitialise le graphique et l'affichage
   chart.data.labels = [];
   chart.data.datasets.forEach((ds) => (ds.data = []));
   chart.update();
   resultEl.textContent = "Test " + mode + " en cours...";
   resultEl.className = "result";
 
+  // Ouvre un flux SSE vers l'API Flask
   const evtSource = new EventSource("/api/measure-stream");
 
+  // À chaque message reçu, met à jour le graphique et affiche le résultat final
   evtSource.onmessage = (event) => {
     const parsed = JSON.parse(event.data);
     if (parsed.values) updateChart(parsed.values);
@@ -60,16 +68,20 @@ function launchTest(mode) {
     }
   };
 
+  // Gestion des erreurs du flux SSE
   evtSource.onerror = () => {
     evtSource.close();
     resultEl.textContent = "Erreur pendant le test.";
   };
 }
 
+// Ajoute les listeners sur les boutons pour lancer les tests DC ou AC
+// Bouton DC
 document
   .getElementById("startDCBtn")
   .addEventListener("click", () => launchTest("DC"));
 
+// Bouton AC
 document
   .getElementById("startACBtn")
   .addEventListener("click", () => launchTest("AC"));

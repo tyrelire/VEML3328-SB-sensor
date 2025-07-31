@@ -58,26 +58,28 @@ async function startMeasurement() {
       encodeURIComponent(JSON.stringify(currentLimits))
   );
 
+  // Gestion des événements reçus du serveur (SSE)
   evtSource.onmessage = (event) => {
-    const parsed = JSON.parse(event.data);
-    console.log("▶️ parsed", parsed); 
+    const parsed = JSON.parse(event.data); // Parse le message JSON reçu
+    console.log("▶️ parsed", parsed);
     if (parsed.values) {
-      updateChart(parsed.values);
+      updateChart(parsed.values); // Met à jour le graphique avec les nouvelles valeurs
     }
     if (parsed.final_result) {
-      let resultText = parsed.final_result;
-    if (
-      parsed.final_result === "NO GO" &&
-      Array.isArray(parsed.failed_checks) &&
-      parsed.failed_checks.length > 0
-    ) {
-      resultText += "\n\nÉcarts détectés :\n";
-      parsed.failed_checks.forEach((fail) => {
-        resultText += `• ${fail.channel} : ${fail.value_raw} (~${fail.value_8bit}/255)\n`;
-        resultText += `  Limites : ${fail.min_raw}–${fail.max_raw} (≈ ${fail.min_8bit}–${fail.max_8bit})\n\n`;
-      });
-    }
-
+      let resultText = parsed.final_result; // Résultat GO/NO GO
+      // Si le test est NO GO, affiche les écarts détectés
+      if (
+        parsed.final_result === "NO GO" &&
+        Array.isArray(parsed.failed_checks) &&
+        parsed.failed_checks.length > 0
+      ) {
+        resultText += "\n\nÉcarts détectés :\n";
+        parsed.failed_checks.forEach((fail) => {
+          resultText += `• ${fail.channel} : ${fail.value_raw} (~${fail.value_8bit}/255)\n`;
+          resultText += `  Limites : ${fail.min_raw}–${fail.max_raw} (≈ ${fail.min_8bit}–${fail.max_8bit})\n\n`;
+        });
+      }
+      // Affiche le résultat et réactive le bouton de test
       resultEl.textContent = resultText;
       resultEl.className =
         parsed.final_result === "NO GO" ? "result nogo" : "result go";
@@ -86,6 +88,7 @@ async function startMeasurement() {
     }
   };
 
+  // Gestion des erreurs du flux SSE
   evtSource.onerror = () => {
     evtSource.close();
     document.getElementById("startTestBtn").disabled = false;
@@ -144,7 +147,7 @@ document
           p1red: "Rouge",
           p2green: "Vert",
           p3blue: "Bleu",
-          p4white: "Blanc"
+          p4white: "Blanc",
         };
 
         for (const key in limits) {
@@ -154,22 +157,30 @@ document
             const start = limits[`${phase}_start`];
             const end = limits[`${phase}_end`];
 
-            const mainColor = phase.includes("red") ? "red" :
-                              phase.includes("green") ? "green" :
-                              phase.includes("blue") ? "blue" :
-                              phase.includes("white") ? "white" : null;
+            const mainColor = phase.includes("red")
+              ? "red"
+              : phase.includes("green")
+              ? "green"
+              : phase.includes("blue")
+              ? "blue"
+              : phase.includes("white")
+              ? "white"
+              : null;
 
             const min = limits[`${phase}_min_${mainColor}`];
             const max = limits[`${phase}_max_${mainColor}`];
 
-            if (min !== undefined && max !== undefined && (min != 0 || max != 0)) {
+            if (
+              min !== undefined &&
+              max !== undefined &&
+              (min != 0 || max != 0)
+            ) {
               phasesHTML += `<li><b>${color}</b> : ${min}–${max} (entre ${start}ms et ${end}ms)</li>`;
             }
           }
         }
         phasesHTML += "</ul>";
         document.getElementById("productInfo").innerHTML += phasesHTML;
-
       }
       document.getElementById("startTestBtn").style.display = "inline-block";
     } catch (err) {
@@ -180,6 +191,7 @@ document
     }
   });
 
+// Récupère le nom du log serveur et affiche le lien de téléchargement
 fetch("/api/logname")
   .then((res) => res.json())
   .then((data) => {
@@ -197,6 +209,7 @@ fetch("/api/logname")
       "⚠️ Erreur lors du chargement du log.";
   });
 
+// Récupère le dernier log de test et affiche le lien de téléchargement
 fetch("/api/last-test-log")
   .then((res) => res.json())
   .then((data) => {

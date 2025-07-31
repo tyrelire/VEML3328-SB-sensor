@@ -1,9 +1,15 @@
+// Limites de test courantes (chargées depuis l'API)
 let currentLimits = {};
+// Liste de tous les produits disponibles (chargés depuis l'API)
 let allProducts = [];
+// Élément d'affichage du résultat du test
 const resultEl = document.getElementById("testResult");
+// Bouton pour lancer le test
 const startBtn = document.getElementById("startTestBtn");
+// Champ de sélection du modèle
 const modelInput = document.getElementById("modelSelect");
 
+// Initialisation du graphique (Chart.js) pour afficher les mesures en temps réel
 let chart = new Chart(document.getElementById("chart").getContext("2d"), {
   type: "line",
   data: {
@@ -24,8 +30,10 @@ let chart = new Chart(document.getElementById("chart").getContext("2d"), {
   },
 });
 
+// Met à jour le graphique avec les nouvelles valeurs reçues
 function updateChart(values) {
   if (!values) return;
+  // Limite à 50 points pour garder le graphique lisible
   if (chart.data.labels.length > 50) {
     chart.data.labels.shift();
     chart.data.datasets.forEach((ds) => ds.data.shift());
@@ -39,7 +47,9 @@ function updateChart(values) {
   chart.update("none");
 }
 
+// Lance le test de mesure et gère le flux SSE pour afficher les mesures
 async function startMeasurement() {
+  // Réinitialise le graphique et l'affichage
   chart.data.labels = [];
   chart.data.datasets.forEach((ds) => (ds.data = []));
   chart.update();
@@ -47,17 +57,20 @@ async function startMeasurement() {
   resultEl.textContent = "Test en cours...";
   startBtn.disabled = true;
 
+  // Ouvre un flux SSE vers l'API Flask avec les limites sélectionnées
   const evtSource = new EventSource(
     "/api/measure-stream?limits=" +
       encodeURIComponent(JSON.stringify(currentLimits))
   );
 
+  // À chaque message reçu, met à jour le graphique et affiche le résultat final
   evtSource.onmessage = (event) => {
     const parsed = JSON.parse(event.data);
     if (parsed.values) updateChart(parsed.values);
 
     if (parsed.final_result) {
       let resultText = parsed.final_result;
+      // Si le test est NO GO, affiche les écarts détectés
       if (parsed.final_result === "NO GO" && parsed.failed_checks) {
         resultText += "\n\nÉcarts détectés :\n";
         parsed.failed_checks.forEach((fail) => {
@@ -65,6 +78,7 @@ async function startMeasurement() {
           resultText += `  Limites : ${fail.min_raw}–${fail.max_raw} (≈ ${fail.min_8bit}–${fail.max_8bit})\n\n`;
         });
       }
+      // Affiche le résultat et réactive le bouton de test
       resultEl.textContent = resultText;
       resultEl.className =
         parsed.final_result === "NO GO" ? "result nogo" : "result go";
@@ -73,6 +87,7 @@ async function startMeasurement() {
     }
   };
 
+  // Gestion des erreurs du flux SSE
   evtSource.onerror = () => {
     evtSource.close();
     resultEl.textContent = "❌ Erreur de communication.";
@@ -80,6 +95,7 @@ async function startMeasurement() {
   };
 }
 
+// Gère la sélection du modèle et charge les limites associées
 modelInput.addEventListener("input", async () => {
   const selectedRef = modelInput.value.trim();
 
@@ -90,6 +106,7 @@ modelInput.addEventListener("input", async () => {
     return;
   }
 
+  // Recherche le produit correspondant à la référence sélectionnée
   const match = allProducts.find((p) => p.reference === selectedRef);
 
   if (!match) {
@@ -102,6 +119,7 @@ modelInput.addEventListener("input", async () => {
   resultEl.textContent = "⏳ Chargement des limites...";
 
   try {
+    // Récupère les limites de test pour le modèle sélectionné
     const confRes = await fetch(
       `/api/config?code_article=${encodeURIComponent(match.reference)}`
     );
@@ -123,8 +141,10 @@ modelInput.addEventListener("input", async () => {
   }
 });
 
+// Lancement du test au clic sur le bouton
 startBtn.addEventListener("click", startMeasurement);
 
+// Récupère la liste des produits disponibles et remplit la liste de sélection
 fetch("/api/products")
   .then((res) => res.json())
   .then((data) => {
@@ -140,6 +160,7 @@ fetch("/api/products")
   })
   .catch((err) => console.error("Erreur chargement modèles :", err));
 
+// Récupère le nom du log serveur et l'affiche
 fetch("/api/logname")
   .then((res) => res.json())
   .then((data) => {
@@ -148,6 +169,7 @@ fetch("/api/logname")
     ).textContent = `🗒️ Log serveur : /logs/${data.log_filename}`;
   });
 
+// Récupère le dernier log de test et l'affiche
 fetch("/api/last-test-log")
   .then((res) => res.json())
   .then((data) => {
