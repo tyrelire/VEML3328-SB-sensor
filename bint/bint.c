@@ -1,34 +1,43 @@
+// === Configuration et définitions ===
 #include <xc.h>
 
-#define _XTAL_FREQ 4000000
+#define _XTAL_FREQ 4000000 // Fréquence d'oscillateur pour les délais
 
+// Configuration des bits du microcontrôleur
 #pragma config FOSC = INTOSC, WDTE = OFF, PWRTE = OFF, MCLRE = ON
 #pragma config CP = OFF, CPD = OFF, BOREN = ON, CLKOUTEN = OFF
 #pragma config IESO = OFF, FCMEN = OFF
 
-#define RELAIS_K7 LATCbits.LATC0
-#define RELAIS_K6 LATCbits.LATC1
-#define RELAIS_K1 LATCbits.LATC6
+// === Définition des relais et zones ===
+#define RELAIS_K7 LATCbits.LATC0 // LED jaune
+#define RELAIS_K6 LATCbits.LATC1 // LED rouge
+#define RELAIS_K1 LATCbits.LATC6 // LED verte
 
-#define ZONE_A LATCbits.LATC4
-#define ZONE_B LATCbits.LATC5
+#define ZONE_A LATCbits.LATC4    // Zone A projecteur
+#define ZONE_B LATCbits.LATC5    // Zone B projecteur
 
-#define RS_DE LATAbits.LATA1
-#define RS_DI LATBbits.LATB7
+// === Définition RS485 ===
+#define RS_DE LATAbits.LATA1     // Driver Enable
+#define RS_DI LATBbits.LATB7     // Driver Input
 
-#define BTN_STOP  PORTAbits.RA2
-#define BTN_START PORTAbits.RA4
-#define SWITCH_MODE PORTAbits.RA3
+// === Boutons physiques ===
+#define BTN_STOP  PORTAbits.RA2  // Bouton d'arrêt
+#define BTN_START PORTAbits.RA4  // Bouton de démarrage
+#define SWITCH_MODE PORTAbits.RA3 // Switch mode validation visuelle
 
-#define ADDR_CYCLE 0x00
-#define ADDR_ETAPE 0x01
+// === Adresses EEPROM ===
+#define ADDR_CYCLE 0x00 // Adresse sauvegarde cycle
+#define ADDR_ETAPE 0x01 // Adresse sauvegarde étape
 
+// === États du programme principal ===
 enum Etat { IDLE, CYCLE, PAUSE, VALIDATION_VISUELLE, TERMINE };
-enum Etat etat = IDLE;
+enum Etat etat = IDLE; // État courant
 
-unsigned char cycle_en_cours = 0;
-unsigned char etape_cycle = 0;
+unsigned char cycle_en_cours = 0; // Compteur de cycles
+unsigned char etape_cycle = 0;    // Étape courante du cycle
 
+// === Fonctions EEPROM ===
+// Sauvegarde une valeur à une adresse donnée
 void eeprom_write(unsigned char addr, unsigned char data) {
     EEADR = addr;
     EEDATA = data;
@@ -44,6 +53,7 @@ void eeprom_write(unsigned char addr, unsigned char data) {
     INTCONbits.GIE = 1;
 }
 
+// Lit une valeur à une adresse donnée
 unsigned char eeprom_read(unsigned char addr) {
     EEADR = addr;
     EECON1bits.EEPGD = 0;
@@ -52,52 +62,59 @@ unsigned char eeprom_read(unsigned char addr) {
     return EEDATA;
 }
 
+// === Initialisation des GPIO ===
 void initGPIO() {
-    TRISC = 0x00;
-    LATC = 0x00;
-    TRISAbits.TRISA2 = 1;
-    ANSELAbits.ANSA2 = 0;
-    TRISAbits.TRISA3 = 1;
-    TRISAbits.TRISA4 = 1;
-    ANSELAbits.ANSA4 = 0;
-    TRISAbits.TRISA1 = 0;
-    TRISBbits.TRISB7 = 0;
-    OPTION_REGbits.nWPUEN = 0;
-    WPUAbits.WPUA2 = 1;
-    WPUAbits.WPUA3 = 1;
-    WPUAbits.WPUA4 = 1;
+    TRISC = 0x00;      // Tous les ports C en sortie
+    LATC = 0x00;       // État initial bas
+    TRISAbits.TRISA2 = 1; // RA2 en entrée (BTN_STOP)
+    ANSELAbits.ANSA2 = 0; // RA2 en digital
+    TRISAbits.TRISA3 = 1; // RA3 en entrée (SWITCH_MODE)
+    TRISAbits.TRISA4 = 1; // RA4 en entrée (BTN_START)
+    ANSELAbits.ANSA4 = 0; // RA4 en digital
+    TRISAbits.TRISA1 = 0; // RA1 en sortie (RS_DE)
+    TRISBbits.TRISB7 = 0; // RB7 en sortie (RS_DI)
+    OPTION_REGbits.nWPUEN = 0; // Active les pull-up
+    WPUAbits.WPUA2 = 1;   // Pull-up sur RA2
+    WPUAbits.WPUA3 = 1;   // Pull-up sur RA3
+    WPUAbits.WPUA4 = 1;   // Pull-up sur RA4
 }
 
-void setLedVert()   { RELAIS_K1 = 1; RELAIS_K6 = 0; RELAIS_K7 = 0; }
-void setLedRouge()  { RELAIS_K1 = 1; RELAIS_K6 = 1; RELAIS_K7 = 0; }
-void setLedJaune()  { RELAIS_K1 = 1; RELAIS_K6 = 0; RELAIS_K7 = 1; }
-void eteindreLeds() { RELAIS_K1 = 0; RELAIS_K6 = 0; RELAIS_K7 = 0; }
+// === Contrôle des LEDs ===
+void setLedVert()   { RELAIS_K1 = 1; RELAIS_K6 = 0; RELAIS_K7 = 0; } // LED verte
+void setLedRouge()  { RELAIS_K1 = 1; RELAIS_K6 = 1; RELAIS_K7 = 0; } // LED rouge
+void setLedJaune()  { RELAIS_K1 = 1; RELAIS_K6 = 0; RELAIS_K7 = 1; } // LED jaune
+void eteindreLeds() { RELAIS_K1 = 0; RELAIS_K6 = 0; RELAIS_K7 = 0; } // Toutes LEDs éteintes
 
-void allumerZoneA()   { ZONE_A = 1; ZONE_B = 0; }
-void allumerZoneB()   { ZONE_A = 0; ZONE_B = 1; }
-void eteindreZones()  { ZONE_A = 0; ZONE_B = 0; }
+// === Contrôle des zones projecteur ===
+void allumerZoneA()   { ZONE_A = 1; ZONE_B = 0; } // Active zone A
+void allumerZoneB()   { ZONE_A = 0; ZONE_B = 1; } // Active zone B
+void eteindreZones()  { ZONE_A = 0; ZONE_B = 0; } // Désactive toutes les zones
 
+// === Communication UART ===
+// Envoie un octet sur l'UART
 void envoyerUART(unsigned char c) {
-    while (!TXSTAbits.TRMT);
+    while (!TXSTAbits.TRMT); // Attend que le buffer soit prêt
     TXREG = c;
 }
 
+// Envoie une commande 32 bits sur RS485 (4 octets)
 void envoyerCommandeRS485(unsigned long data) {
-    RS_DE = 1;
+    RS_DE = 1; // Active le driver
     envoyerUART((data >> 24) & 0xFF);
     envoyerUART((data >> 16) & 0xFF);
     envoyerUART((data >> 8) & 0xFF);
     envoyerUART(data & 0xFF);
     __delay_ms(1);
-    RS_DE = 0;
+    RS_DE = 0; // Désactive le driver
 }
 
-
+// === Détection d'appui sur bouton ===
+// Détecte un appui court sur un bouton (anti-rebond)
 char detecterAppui(char (*lectureBtn)(void)) {
     if (lectureBtn() == 0) {
-        __delay_ms(20);
+        __delay_ms(20); // Anti-rebond
         if (lectureBtn() == 0) {
-            while (lectureBtn() == 0);
+            while (lectureBtn() == 0); // Attend relâchement
             __delay_ms(20);
             return 1;
         }
@@ -105,8 +122,11 @@ char detecterAppui(char (*lectureBtn)(void)) {
     return 0;
 }
 
+// Lecture du bouton START
 char lireBtnStart() { return BTN_START; }
 
+// === Gestion de la pause ===
+// Met le système en pause, clignote LED jaune, attend START ou arrêt prolongé
 void entrerPause() {
     eteindreZones();
     while (1) {
@@ -119,10 +139,10 @@ void entrerPause() {
             return;
         }
         unsigned int maintien = 0;
-        while (BTN_STOP == 0) {
+        while (BTN_STOP == 0) { // Si bouton STOP maintenu
             __delay_ms(500);
             maintien++;
-            if (maintien >= 10) {
+            if (maintien >= 10) { // Arrêt prolongé : reset cycle
                 cycle_en_cours = 0;
                 etape_cycle = 0;
                 eeprom_write(ADDR_CYCLE, 10);
@@ -134,20 +154,21 @@ void entrerPause() {
     }
 }
 
+// Attend un certain temps ou un appui sur STOP, gère la sauvegarde d'état
 char attendreEtVerifierStop(unsigned int secondes) {
     for (unsigned int i = 0; i < secondes * 20; i++) {
         __delay_ms(50);
-         envoyerCommandeRS485(0xFFFFFFFF);
-        // envoyerCommandeRS485(0xAAAAAAAA);
+        envoyerCommandeRS485(0xFFFFFFFF); // Commande de présence
+        // envoyerCommandeRS485(0xAAAAAAAA); // (optionnel)
 
-        if (BTN_STOP == 0) {
+        if (BTN_STOP == 0) { // Si STOP appuyé
             __delay_ms(30);
             if (BTN_STOP == 0) {
                 unsigned int maintien = 0;
                 while (BTN_STOP == 0) {
                     __delay_ms(500);
                     maintien++;
-                    if (maintien >= 10) {
+                    if (maintien >= 10) { // Arrêt prolongé : reset cycle
                         cycle_en_cours = 0;
                         etape_cycle = 0;
                         eeprom_write(ADDR_CYCLE, 10);
@@ -157,8 +178,8 @@ char attendreEtVerifierStop(unsigned int secondes) {
                     }
                 }
                 __delay_ms(30);
-                eeprom_write(ADDR_CYCLE, cycle_en_cours);
-                eeprom_write(ADDR_ETAPE, etape_cycle);
+                eeprom_write(ADDR_CYCLE, cycle_en_cours); // Sauvegarde cycle
+                eeprom_write(ADDR_ETAPE, etape_cycle);    // Sauvegarde étape
                 etat = PAUSE;
                 return 1;
             }
@@ -167,6 +188,7 @@ char attendreEtVerifierStop(unsigned int secondes) {
     return 0;
 }
 
+// Clignote la LED verte pour signaler la fin
 void clignoterLedVerte() {
     setLedVert();
     __delay_ms(500);
@@ -174,8 +196,10 @@ void clignoterLedVerte() {
     __delay_ms(500);
 }
 
+// === Mode cycle automatique ===
+// Gère la séquence de test automatique
 void modeCycle() {
-    setLedRouge();
+    setLedRouge(); // Indique le début du cycle
     for (; cycle_en_cours < 10; cycle_en_cours++) {
         if (etape_cycle <= 0) {
             allumerZoneA();
@@ -196,10 +220,12 @@ void modeCycle() {
     eteindreZones();
     cycle_en_cours = 0;
     etape_cycle = 0;
-    eeprom_write(ADDR_CYCLE, 10);
+    eeprom_write(ADDR_CYCLE, 10); // Marque la fin du cycle
     etat = TERMINE;
 }
 
+// === Mode validation visuelle ===
+// Permet de tester manuellement les couleurs via RS485
 void modeValidationVisuelle() {
     unsigned long couleurs[] = {
         0x00000000, 0xFF000000, 0x00FF0000,
@@ -209,18 +235,18 @@ void modeValidationVisuelle() {
     allumerZoneA();
     while (inactivite < 3000) {
         for (int i = 0; i < 6; i++) {
-            envoyerCommandeRS485(couleurs[i]);
+            envoyerCommandeRS485(couleurs[i]); // Envoie couleur
             unsigned int d = (i == 0) ? 60 : 20;
             for (int t = 0; t < d; t++) {
                 __delay_ms(100);
                 inactivite++;
                 if (detecterAppui(lireBtnStart)) {
-                    allumerZoneB();
+                    allumerZoneB(); // Passage à zone B
                     inactivite = 0;
                     break;
                 }
                 if (BTN_STOP == 0) {
-                    envoyerCommandeRS485(0x00000000);
+                    envoyerCommandeRS485(0x00000000); // Éteint
                     while (BTN_STOP == 0);
                     inactivite = 0;
                     break;
@@ -236,26 +262,28 @@ void modeValidationVisuelle() {
     etat = IDLE;
 }
 
+// === Initialisation UART ===
 void initUART() {
-    TXSTAbits.BRGH = 1;
-    BAUDCONbits.BRG16 = 1;
-    SPBRG = 103;
+    TXSTAbits.BRGH = 1;      // High speed
+    BAUDCONbits.BRG16 = 1;  // 16-bit baud rate
+    SPBRG = 103;            // Baud rate 9600
     SPBRGH = 0;
-    TXSTAbits.SYNC = 0;
-    RCSTAbits.SPEN = 1;
-    TXSTAbits.TXEN = 1;
+    TXSTAbits.SYNC = 0;     // Mode asynchrone
+    RCSTAbits.SPEN = 1;     // Active UART
+    TXSTAbits.TXEN = 1;     // Active transmission
 }
 
+// === Point d'entrée principal ===
 void main(void) {
-    OSCCONbits.IRCF = 0b1101;
-    OSCCONbits.SCS = 0b10;
-    initGPIO();
-    initUART();    
+    OSCCONbits.IRCF = 0b1101; // Oscillateur interne 4 MHz
+    OSCCONbits.SCS = 0b10;    // Sélection source d'horloge
+    initGPIO();               // Initialisation des entrées/sorties
+    initUART();               // Initialisation UART    
 
     while (1) {
         switch (etat) {
             case IDLE:
-                setLedVert();
+                setLedVert(); // Attente
                 if (detecterAppui(lireBtnStart)) {
                     unsigned char savedCycle = eeprom_read(ADDR_CYCLE);
                     if (savedCycle < 10) {
@@ -270,17 +298,17 @@ void main(void) {
                 }
                 break;
             case CYCLE:
-                modeCycle();
+                modeCycle(); // Lance le cycle automatique
                 break;
             case PAUSE:
-                entrerPause();
+                entrerPause(); // Pause utilisateur
                 break;
             case TERMINE:
-                clignoterLedVerte();
+                clignoterLedVerte(); // Fin de cycle
                 if (detecterAppui(lireBtnStart)) etat = VALIDATION_VISUELLE;
                 break;
             case VALIDATION_VISUELLE:
-                modeValidationVisuelle();
+                modeValidationVisuelle(); // Mode manuel
                 break;
             default:
                 etat = IDLE;
