@@ -20,7 +20,6 @@ Interface web Flask pour tester des projecteurs LED à l’aide du capteur de lu
 VEML3328-SB-SENSOR/
 │
 ├── veml_server.py                # Serveur Flask principal (API + interface web)
-├── brutforce.py                  # Script utilitaire pour tests bruts
 ├── found_barcodes_with_limits_*.txt # Exports des résultats de tests
 ├── requirement.txt               # Dépendances Python
 ├── logs/                         # Dossier des logs générés automatiquement
@@ -46,7 +45,6 @@ VEML3328-SB-SENSOR/
 Chaque dossier/fichier a un rôle précis :
 
 - **veml_server.py** : point d’entrée du serveur, gère les routes et l’API.
-- **brutforce.py** : utilitaire pour des tests ou manipulations directes.
 - **logs/** : tous les logs générés lors des tests et mesures.
 - **static/** : ressources front-end (JS/CSS) pour l’interface utilisateur.
 - **templates/** : pages HTML affichées par Flask.
