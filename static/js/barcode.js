@@ -61,7 +61,7 @@ async function startMeasurement() {
   // Gestion des événements reçus du serveur (SSE)
   evtSource.onmessage = (event) => {
     const parsed = JSON.parse(event.data); // Parse le message JSON reçu
-    console.log("▶️ parsed", parsed);
+    console.log("▶parsed", parsed);
     if (parsed.values) {
       updateChart(parsed.values); // Met à jour le graphique avec les nouvelles valeurs
     }
@@ -138,9 +138,9 @@ document
       currentLimits = limits || {};
       if (!limits || Object.keys(limits).length === 0) {
         resultEl.textContent =
-          "⚠️ Aucune limite trouvée. Vous pouvez quand même lancer le test.";
+          "Aucune limite trouvée. Vous pouvez quand même lancer le test.";
       } else {
-        resultEl.textContent = "✅ Limites chargées. Prêt pour test.";
+        resultEl.textContent = "Limites chargées. Prêt pour test.";
         // Affichage des limites extraites
         let phasesHTML = "<h3>Limites de test :</h3><ul>";
         const phaseColorMap = {
@@ -198,7 +198,7 @@ fetch("/api/logname")
     const logDiv = document.getElementById("logPath");
     const logUrl = `/logs/${data.log_filename}`;
     logDiv.innerHTML = `
-      🗒️ Log serveur : <code>${logUrl}</code>
+      Log serveur : <code>${logUrl}</code>
       <a href="${logUrl}" download>
         <button class="download-btn">Télécharger</button>
       </a>
@@ -206,7 +206,7 @@ fetch("/api/logname")
   })
   .catch(() => {
     document.getElementById("logPath").textContent =
-      "⚠️ Erreur lors du chargement du log.";
+      "Erreur lors du chargement du log.";
   });
 
 // Récupère le dernier log de test et affiche le lien de téléchargement
@@ -216,17 +216,17 @@ fetch("/api/last-test-log")
     if (data.test_log_filename) {
       const name = data.test_log_filename;
       document.getElementById("lastTestLog").innerHTML = `
-        🗂️ Dernier log de test : <code>${data.test_log_filename}</code>
+        Dernier log de test : <code>${data.test_log_filename}</code>
         <a href="/download-log/${data.test_log_filename}">
           <button class="download-btn">Télécharger</button>
         </a>
       `;
     } else {
       document.getElementById("lastTestLog").textContent =
-        "ℹ️ Aucun log de test encore enregistré.";
+        "ℹAucun log de test encore enregistré.";
     }
   })
   .catch(() => {
     document.getElementById("lastTestLog").textContent =
-      "⚠️ Erreur lors du chargement du dernier log de test.";
+      "Erreur lors du chargement du dernier log de test.";
   });
